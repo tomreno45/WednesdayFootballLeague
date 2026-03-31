@@ -1,0 +1,1362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>WFL Team Manager</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        html {
+            scroll-behavior: smooth;
+            -webkit-tap-highlight-color: rgba(30, 60, 114, 0.2);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #7e22ce 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+
+        .container { max-width: 1400px; margin: 0 auto; }
+
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 3em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        /* Loading overlay */
+        .db-loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(30, 60, 114, 0.95);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+        .db-loading-overlay.hidden { display: none; }
+        .db-loading-content { text-align: center; color: white; }
+        .db-loading-content h2 { font-size: 2em; margin-bottom: 20px; }
+        .db-loading-spinner {
+            border: 4px solid rgba(255,255,255,0.3);
+            border-top: 4px solid white;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            background: rgba(255,255,255,0.1);
+            padding: 10px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            flex-wrap: wrap;
+        }
+        .tab-button {
+            flex: 1;
+            min-width: 100px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 2px solid transparent;
+            padding: 15px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        .tab-button:hover { background: rgba(255,255,255,0.3); transform: translateY(-2px); }
+        .tab-button.active { background: white; color: #1e3c72; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Controls */
+        .controls {
+            background: white;
+            padding: 20px 25px;
+            border-radius: 15px;
+            margin-bottom: 25px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        .control-group {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        label { font-weight: 600; color: #333; font-size: 16px; }
+        select {
+            flex: 1;
+            min-width: 180px;
+            padding: 10px 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 15px;
+            cursor: pointer;
+        }
+        button {
+            background: #1e3c72;
+            color: white;
+            border: none;
+            padding: 10px 22px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+        }
+        button:hover { background: #2a5298; }
+
+        .loading { text-align: center; padding: 40px; color: white; font-size: 18px; }
+        .error { background: #ff6b6b; color: white; padding: 16px 20px; border-radius: 10px; margin-bottom: 20px; }
+
+        /* Team header */
+        .team-header {
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: white; padding: 22px 28px;
+            border-radius: 15px; margin-bottom: 20px;
+        }
+        .team-header h2 { font-size: 2em; margin-bottom: 4px; }
+        .team-header-logo { display: flex; align-items: center; gap: 15px; }
+
+        /* Stats */
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 16px;
+            margin-bottom: 25px;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: white; padding: 18px;
+            border-radius: 10px; text-align: center;
+        }
+        .stat-label { font-size: 12px; opacity: 0.9; text-transform: uppercase; }
+        .stat-value { font-size: 34px; font-weight: bold; margin-top: 6px; }
+
+        /* Player cards - horizontal */
+        .roster-container {
+            background: white; border-radius: 15px;
+            padding: 28px; box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        .position-group { margin-bottom: 28px; }
+        .position-header {
+            background: #f5f5f5; padding: 10px 18px;
+            border-radius: 8px; margin-bottom: 14px;
+            font-weight: 600; color: #333; font-size: 17px;
+            border-left: 4px solid #1e3c72;
+        }
+        .player-grid { display: flex; flex-direction: column; gap: 10px; }
+        .player-card {
+            background: white; border: 2px solid #e0e0e0;
+            border-radius: 8px; padding: 12px 16px;
+            display: grid;
+            grid-template-columns: auto 1fr auto auto auto auto auto auto auto auto;
+            gap: 20px;
+            align-items: center;
+        }
+        .player-card.injured { border-color: #e74c3c; background: #fff5f5; }
+        .player-card:hover { border-color: #1e3c72; transform: translateX(4px); }
+        .player-card.injured:hover { border-color: #e74c3c; }
+        .depth-badge { background: #1e3c72; color: white; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; }
+        .injury-badge {
+            background: #e74c3c;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+        }
+        .injury-type {
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        .injury-weeks {
+            font-size: 9px;
+            opacity: 0.9;
+        }
+        .player-name { font-size: 16px; font-weight: 700; color: #1e3c72; }
+        .player-detail { font-size: 14px; display: flex; flex-direction: column; align-items: center; }
+        .player-detail-label { font-size: 10px; color: #888; text-transform: uppercase; }
+        .player-detail-value { font-weight: 600; color: #333; }
+        .player-stat-inline { text-align: center; display: flex; flex-direction: column; }
+        .stat-name-inline { font-size: 10px; color: #888; text-transform: uppercase; }
+        .stat-val-inline { font-size: 18px; font-weight: bold; color: #1e3c72; }
+
+        /* Tables */
+        .standings-table-container, .scores-table-container, .stats-table-container {
+            background: white; border-radius: 15px;
+            padding: 28px; box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            overflow-x: auto;
+        }
+        table { width: 100%; border-collapse: collapse; }
+        thead { background: #1e3c72; color: white; }
+        th { padding: 13px 14px; text-align: left; font-size: 12px; text-transform: uppercase; }
+        td { padding: 11px 14px; border-bottom: 1px solid #e0e0e0; }
+        tbody tr:hover { background: #f8f9ff; }
+        .rank-badge { display: inline-flex; width: 28px; height: 28px; border-radius: 50%; background: #1e3c72; color: white; font-weight: bold; align-items: center; justify-content: center; }
+        .rank-1 { background: #f1c40f; color: #333; }
+        .rank-2 { background: #95a5a6; }
+        .rank-3 { background: #cd7f32; }
+        .team-logo { width: 40px; height: 40px; object-fit: contain; margin-right: 8px; }
+        .team-logo-small { width: 30px; height: 30px; object-fit: contain; margin-right: 6px; }
+        .team-logo-large { width: 60px; height: 60px; object-fit: contain; }
+        .team-with-logo { display: flex; align-items: center; gap: 8px; }
+
+        /* Game cards */
+        .game-card {
+            background: white; border: 2px solid #e0e0e0;
+            border-radius: 10px; padding: 18px; margin-bottom: 14px;
+        }
+        .game-card:hover { border-color: #1e3c72; }
+        .game-header { display: flex; justify-content: space-between; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid #f0f0f0; }
+        .game-teams { display: grid; grid-template-columns: 1fr auto 1fr; gap: 20px; align-items: center; }
+        .game-team-container { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+        .team-name { font-size: 17px; font-weight: 700; color: #1e3c72; }
+        .team-name.winner { color: #2ecc71; }
+        .score { font-size: 30px; font-weight: bold; color: #333; }
+        .score.winner { color: #2ecc71; }
+        .vs { font-size: 13px; color: #999; font-weight: 600; }
+        .game-badge { padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; margin-left: 8px; }
+        .badge-tie { background: #f39c12; color: white; }
+        .badge-ot { background: #e74c3c; color: white; }
+        .game-stats-container {
+            background: #f8f9ff;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+        .game-stats-container table {
+            background: white;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .game-stats-container th {
+            background: #1e3c72;
+            color: white;
+            padding: 10px 12px;
+            text-align: left;
+            font-size: 12px;
+        }
+        .game-stats-container td {
+            padding: 8px 12px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .game-stats-container tr:last-child td {
+            border-bottom: none;
+        }
+        .game-stats-container tr:hover {
+            background: #f8f9ff;
+        }
+
+        /* News feed */
+        .news-feed { max-width: 620px; margin: 0 auto; }
+        .news-card { background: #fff; border: 1px solid #e2e8f0; padding: 16px 20px; }
+        .news-feed .news-card:first-child { border-radius: 16px 16px 0 0; }
+        .news-feed .news-card:last-child { border-radius: 0 0 16px 16px; }
+        .news-feed .news-card:only-child { border-radius: 16px; }
+        .news-card + .news-card { border-top: none; }
+        .news-card:hover { background: #f7fafc; }
+        .news-card-inner { display: grid; grid-template-columns: 48px 1fr; gap: 12px; }
+        .news-avatar { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; }
+        .news-avatar-placeholder {
+            width: 48px; height: 48px; border-radius: 50%;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-weight: 700; font-size: 18px;
+        }
+        .news-header { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
+        .news-name { font-weight: 700; color: #0f172a; font-size: 15px; }
+        .news-handle { color: #64748b; font-size: 14px; }
+        .news-meta { color: #94a3b8; font-size: 13px; margin-left: auto; }
+        .news-content { font-size: 15px; line-height: 1.6; color: #1e293b; white-space: pre-wrap; margin-bottom: 10px; }
+        .news-image { width: 100%; max-height: 300px; object-fit: cover; border-radius: 12px; border: 1px solid #e2e8f0; margin-top: 10px; }
+        .news-footer { display: flex; gap: 22px; margin-top: 12px; color: #64748b; font-size: 13px; }
+        .news-badge { padding: 2px 9px; border-radius: 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+        .badge-report { background: #dbeafe; color: #1d4ed8; }
+        .badge-tweet { background: #e0f2fe; color: #0369a1; }
+        .badge-injury { background: #fee2e2; color: #dc2626; }
+        .badge-trade { background: #dcfce7; color: #15803d; }
+        .badge-default { background: #f1f5f9; color: #475569; }
+        .empty-state { text-align: center; padding: 50px 20px; color: #999; }
+
+        @media (max-width: 768px) {
+            h1 { font-size: 2em; padding: 0 10px; }
+            
+            .container { padding: 20px 10px; }
+            
+            .tabs { padding: 8px; gap: 6px; }
+            
+            .tab-button { 
+                padding: 12px 10px; 
+                font-size: 13px;
+                min-width: auto;
+            }
+            
+            .control-group { 
+                flex-direction: column; 
+                align-items: stretch; 
+                gap: 10px;
+            }
+            
+            select { min-width: 100%; }
+            
+            /* Mobile-optimized player cards */
+            body.mobile .player-card {
+                grid-template-columns: 1fr;
+                gap: 0;
+                padding: 12px 12px 30px 12px;
+                position: relative;
+                cursor: pointer;
+                transition: all 0.3s ease;
+            }
+            
+            body.mobile .player-card.expanded {
+                padding-bottom: 35px;
+            }
+            
+            body.mobile .player-card:active {
+                background: #f8f9ff;
+            }
+            
+            body.mobile .depth-badge {
+                position: absolute;
+                top: 8px;
+                right: 8px;
+                z-index: 1;
+            }
+            
+            body.mobile .injury-badge {
+                position: absolute;
+                top: 8px;
+                left: 8px;
+                font-size: 10px;
+                padding: 3px 8px;
+                z-index: 1;
+            }
+            
+            body.mobile .player-name {
+                font-size: 17px;
+                padding-top: 30px;
+                margin-bottom: 10px;
+            }
+            
+            /* Hide details by default on mobile */
+            body.mobile .player-card .player-detail,
+            body.mobile .player-card .player-stat-inline:not(.overall-stat) {
+                display: none;
+            }
+            
+            /* Show overall rating always */
+            body.mobile .player-card .overall-stat {
+                display: flex;
+                flex-direction: row;
+                justify-content: space-between;
+                padding: 10px 0;
+                border-top: 1px solid #e0e0e0;
+                margin-top: 8px;
+            }
+            
+            body.mobile .player-card .overall-stat .stat-name-inline {
+                text-align: left;
+                font-size: 12px;
+                margin-bottom: 0;
+            }
+            
+            body.mobile .player-card .overall-stat .stat-val-inline {
+                font-size: 20px;
+            }
+            
+            /* Expanded state - show all details */
+            body.mobile .player-card.expanded .player-detail {
+                display: flex;
+                flex-direction: row;
+                justify-content: space-between;
+                padding: 8px 0;
+                border-bottom: 1px solid #f0f0f0;
+            }
+            
+            body.mobile .player-card.expanded .player-detail:last-of-type {
+                border-bottom: 2px solid #e0e0e0;
+                margin-bottom: 8px;
+            }
+            
+            body.mobile .player-card.expanded .player-detail-label {
+                text-align: left;
+                font-size: 11px;
+                margin-bottom: 0;
+            }
+            
+            body.mobile .player-card.expanded .player-detail-value {
+                text-align: right;
+                font-size: 14px;
+            }
+            
+            body.mobile .player-card.expanded .player-stat-inline {
+                display: flex;
+                flex-direction: row;
+                justify-content: space-between;
+                padding: 10px 0;
+            }
+            
+            body.mobile .player-card.expanded .stat-name-inline {
+                text-align: left;
+                font-size: 12px;
+                margin-bottom: 0;
+            }
+            
+            body.mobile .player-card.expanded .stat-val-inline {
+                font-size: 20px;
+            }
+            
+            /* Expand indicator */
+            body.mobile .player-card::after {
+                content: '▼';
+                position: absolute;
+                bottom: 8px;
+                right: 50%;
+                transform: translateX(50%);
+                color: #999;
+                font-size: 12px;
+                transition: transform 0.3s ease;
+            }
+            
+            body.mobile .player-card.expanded::after {
+                content: '▲';
+            }
+            
+            /* Mobile tables */
+            body.mobile .standings-table-container,
+            body.mobile .stats-table-container,
+            body.mobile .scores-table-container {
+                padding: 15px;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+            
+            body.mobile table {
+                min-width: 600px;
+                font-size: 13px;
+            }
+            
+            body.mobile th,
+            body.mobile td {
+                padding: 8px 6px;
+            }
+            
+            /* Mobile game cards */
+            body.mobile .game-card {
+                padding: 12px;
+            }
+            
+            body.mobile .game-teams {
+                grid-template-columns: 1fr auto 1fr;
+                gap: 10px;
+            }
+            
+            body.mobile .team-name {
+                font-size: 14px;
+            }
+            
+            body.mobile .score {
+                font-size: 20px;
+            }
+            
+            /* Mobile news cards */
+            body.mobile .news-card {
+                padding: 12px 15px;
+            }
+            
+            body.mobile .news-card-inner {
+                grid-template-columns: 40px 1fr;
+                gap: 10px;
+            }
+            
+            body.mobile .news-avatar,
+            body.mobile .news-avatar-placeholder {
+                width: 40px;
+                height: 40px;
+                font-size: 16px;
+            }
+            
+            body.mobile .news-name {
+                font-size: 14px;
+            }
+            
+            body.mobile .news-handle {
+                font-size: 12px;
+            }
+            
+            body.mobile .news-content {
+                font-size: 14px;
+                line-height: 1.5;
+            }
+            
+            body.mobile .news-footer {
+                gap: 12px;
+                font-size: 11px;
+            }
+            
+            /* Mobile stats cards */
+            body.mobile .stats {
+                grid-template-columns: 1fr 1fr;
+                gap: 12px;
+            }
+            
+            body.mobile .stat-card {
+                padding: 14px;
+            }
+            
+            body.mobile .stat-value {
+                font-size: 26px;
+            }
+            
+            /* Mobile controls */
+            body.mobile .controls {
+                padding: 15px;
+            }
+            
+            body.mobile .roster-container,
+            body.mobile .standings-table-container,
+            body.mobile .stats-table-container {
+                padding: 15px;
+            }
+            
+            body.mobile .position-header {
+                font-size: 15px;
+                padding: 8px 12px;
+            }
+            
+            /* Larger tap targets for mobile */
+            body.mobile button {
+                padding: 12px 20px;
+                font-size: 15px;
+                min-height: 44px;
+            }
+            
+            body.mobile select {
+                padding: 12px 14px;
+                font-size: 15px;
+                min-height: 44px;
+            }
+            
+            body.mobile .tab-button {
+                min-height: 44px;
+            }
+            
+            /* Mobile scrolling improvements */
+            body.mobile .player-grid {
+                gap: 12px;
+            }
+            
+            /* Hide less important info on very small screens */
+            @media (max-width: 375px) {
+                body.mobile .player-detail:nth-child(6) {
+                    /* Hide college on very small screens */
+                    display: none;
+                }
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="db-loading-overlay" id="dbLoading">
+    <div class="db-loading-content">
+        <h2>🏈 Loading WFL Database...</h2>
+        <div class="db-loading-spinner"></div>
+        <p>Please wait while we load your team data</p>
+    </div>
+</div>
+
+<div class="container">
+    <h1>🏈 WFL Team Manager</h1>
+    
+    <div style="text-align: center; margin-bottom: 20px;">
+        <div id="leagueInfo" style="color: white; font-size: 18px;"></div>
+    </div>
+
+    <div class="tabs">
+        <button class="tab-button active" onclick="switchTab('roster')">Roster</button>
+        <button class="tab-button" onclick="switchTab('standings')">Standings</button>
+        <button class="tab-button" onclick="switchTab('scores')">Scores</button>
+        <button class="tab-button" onclick="switchTab('stats')">Season Stats</button>
+        <button class="tab-button" onclick="switchTab('news')">WFL News</button>
+    </div>
+
+    <div id="roster-tab" class="tab-content active">
+        <div class="controls">
+            <div class="control-group">
+                <label for="teamSelect">Select Team:</label>
+                <select id="teamSelect"><option value="">-- Choose a team --</option></select>
+            </div>
+        </div>
+        <div id="roster-error"></div>
+        <div id="team-header"></div>
+        <div id="stats-container"></div>
+        <div id="roster-container">
+            <div class="roster-container"><div class="empty-state"><h3>No team selected</h3></div></div>
+        </div>
+    </div>
+
+    <div id="standings-tab" class="tab-content">
+        <div class="controls">
+            <div class="control-group">
+                <h2 style="color:#333;margin:0;">Team Standings</h2>
+            </div>
+        </div>
+        <div id="standings-container"></div>
+    </div>
+
+    <div id="scores-tab" class="tab-content">
+        <div class="controls">
+            <div class="control-group">
+                <h2 style="color:#333;margin:0;">Game Scores</h2>
+            </div>
+        </div>
+        <div id="scores-container"></div>
+    </div>
+
+    <div id="stats-tab" class="tab-content">
+        <div class="controls">
+            <div class="control-group">
+                <label for="skillSelect">Skill Category:</label>
+                <select id="skillSelect" onchange="filterStatsBySkill()">
+                    <option value="passing">Passing</option>
+                    <option value="rushing">Rushing</option>
+                    <option value="receiving">Receiving</option>
+                    <option value="defense">Defense</option>
+                    <option value="kicking">Kicking</option>
+                    <option value="punting">Punting</option>
+                </select>
+            </div>
+        </div>
+        <div id="season-stats-container"></div>
+    </div>
+
+    <div id="news-tab" class="tab-content">
+        <div class="controls">
+            <div class="control-group">
+                <label for="newsFilter">Filter:</label>
+                <select id="newsFilter" onchange="filterNews()">
+                    <option value="all">All News</option>
+                    <option value="report">Reports</option>
+                    <option value="tweet">Tweets</option>
+                    <option value="injury">Injuries</option>
+                    <option value="trade">Trades</option>
+                </select>
+            </div>
+        </div>
+        <div id="news-container"></div>
+    </div>
+</div>
+
+<!-- Load SQL.js from CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
+
+<script>
+    // ── Mobile Detection ────────────────────────────────────────────────────
+    function detectMobile() {
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                        window.innerWidth <= 768;
+        if (isMobile) {
+            document.body.classList.add('mobile');
+            console.log('📱 Mobile device detected - Using optimized layout');
+        } else {
+            document.body.classList.remove('mobile');
+            console.log('🖥️ Desktop device detected - Using standard layout');
+        }
+        return isMobile;
+    }
+
+    // Detect on load and window resize
+    window.addEventListener('DOMContentLoaded', detectMobile);
+    window.addEventListener('resize', detectMobile);
+
+    let db = null;
+    let allSeasonStats = [];
+    let allNews = [];
+    let currentSortColumn = 'passingYards'; // Default sort column
+    let currentSortOrder = 'desc'; // Default sort order
+    let currentSkill = 'passing'; // Track current skill category
+
+    // ── Initialize database ─────────────────────────────────────────────────
+    async function initDatabase() {
+        try {
+            const SQL = await initSqlJs({
+                locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${file}`
+            });
+
+            // Add cache-busting timestamp to force reload
+            const cacheBuster = '?v=' + new Date().getTime();
+            const response = await fetch('GameTest.db' + cacheBuster);
+            if (!response.ok) throw new Error('Database file not found');
+            
+            const buffer = await response.arrayBuffer();
+            db = new SQL.Database(new Uint8Array(buffer));
+
+            document.getElementById('dbLoading').classList.add('hidden');
+            
+            // Show database info
+            const leagueState = query('SELECT Season, Week, Progress FROM LeagueState LIMIT 1')[0];
+            const isMobile = document.body.classList.contains('mobile');
+            const modeIcon = isMobile ? '📱' : '🖥️';
+            
+            if (leagueState) {
+                document.getElementById('leagueInfo').innerHTML = 
+                    modeIcon + ' <strong>Season ' + leagueState.Season + ' • Week ' + leagueState.Week + '</strong> • ' + leagueState.Progress;
+                console.log('📊 Database loaded - Season:', leagueState.Season, 'Week:', leagueState.Week, 'Status:', leagueState.Progress);
+            } else {
+                document.getElementById('leagueInfo').innerHTML = modeIcon + ' <strong>WFL Team Manager</strong>';
+            }
+            
+            loadTeams();
+        } catch (error) {
+            document.getElementById('dbLoading').innerHTML = 
+                '<div class="db-loading-content"><h2>❌ Error Loading Database</h2><p>' + error.message + '</p><p>Make sure GameTest.db is in the same folder as index.html</p></div>';
+        }
+    }
+
+    // Force reload database (for manual refresh)
+    async function reloadDatabase() {
+        const overlay = document.getElementById('dbLoading');
+        overlay.classList.remove('hidden');
+        overlay.innerHTML = '<div class="db-loading-content"><h2>🔄 Reloading Database...</h2><div class="db-loading-spinner"></div></div>';
+        
+        // Close existing database
+        if (db) db.close();
+        db = null;
+        
+        // Reload
+        await initDatabase();
+        
+        // Refresh current view
+        const teamSelect = document.getElementById('teamSelect');
+        if (teamSelect.value) {
+            teamSelect.dispatchEvent(new Event('change'));
+        }
+    }
+
+    // Helper to run SQL queries
+    function query(sql, params = []) {
+        const stmt = db.prepare(sql);
+        if (params.length) stmt.bind(params);
+        const rows = [];
+        while (stmt.step()) {
+            const row = stmt.getAsObject();
+            rows.push(row);
+        }
+        stmt.free();
+        return rows;
+    }
+
+    // ── Tab switching ───────────────────────────────────────────────────────
+    function switchTab(name) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-button').forEach(el => el.classList.remove('active'));
+        document.getElementById(name + '-tab').classList.add('active');
+        document.querySelectorAll('.tab-button').forEach(btn => {
+            if (btn.getAttribute('onclick') === "switchTab('" + name + "')") btn.classList.add('active');
+        });
+        if (name === 'standings') loadStandings();
+        else if (name === 'scores') loadScores();
+        else if (name === 'stats') loadSeasonStats();
+        else if (name === 'news') loadNews();
+    }
+
+    // ── Helpers ─────────────────────────────────────────────────────────────
+    function logoImg(teamName, cls) {
+        if (!teamName) return '';
+        return '<img src="Pictures/' + teamName + '.png" alt="' + teamName + '" class="' + (cls||'team-logo') + '" onerror="this.onerror=null; this.src=\'pictures/' + teamName + '.png\'; this.onerror=function(){this.style.display=\'none\'}">';
+    }
+    function fmtHeight(inches) { return Math.floor(inches/12) + "'" + (inches%12) + '"'; }
+    function getInitials(name) {
+        if (!name) return '?';
+        return name.trim().split(/\s+/).map(w => w[0].toUpperCase()).slice(0,2).join('');
+    }
+    function posName(pos) {
+        const map = {QB:'Quarterback',WR:'Wide Receiver',RB:'Running Back',TE:'Tight End',
+                     OL:'Offensive Line',DE:'Defensive End',DT:'Defensive Tackle',
+                     LB:'Linebacker',CB:'Cornerback',FS:'Free Safety',SS:'Strong Safety',
+                     K:'Kicker',P:'Punter'};
+        return map[pos] || pos;
+    }
+
+    // ── Teams / Roster ──────────────────────────────────────────────────────
+    function loadTeams() {
+        const teams = query('SELECT TeamID, name, nickname, owner FROM Teams ORDER BY name');
+        const sel = document.getElementById('teamSelect');
+        teams.forEach(t => {
+            const opt = document.createElement('option');
+            opt.value = t.TeamID;
+            opt.textContent = t.name + (t.owner ? ' (Owner: ' + t.owner + ')' : '');
+            sel.appendChild(opt);
+        });
+        sel.addEventListener('change', onTeamChange);
+    }
+
+    function onTeamChange(e) {
+        const id = e.target.value;
+        if (!id) { clearRoster(); return; }
+        const team = query('SELECT * FROM Teams WHERE TeamID = ?', [id])[0];
+        
+        // Get current league state
+        const leagueState = query('SELECT Season, Week FROM LeagueState LIMIT 1')[0];
+        const currentSeason = leagueState ? leagueState.Season : 2025;
+        const currentWeek = leagueState ? leagueState.Week : 1;
+        
+        const roster = query(`
+            SELECT r.PlayerID, r.Pos, r.DepthChart,
+                   p.FirstName, p.LastName, p.Age, p.Height, p.Weight, p.College,
+                   pa.overall, pa.overall_let, pa.potential, pa.potential_let,
+                   i.InjuryType, i.WeekStart, i.WeekEnd
+            FROM Rosters r
+            LEFT JOIN Players p ON r.PlayerID = p.PlayerID
+            LEFT JOIN PlayerAttributes pa ON r.PlayerID = pa.PlayerID
+            LEFT JOIN InjuryLog i ON r.PlayerID = i.PlayerID 
+                AND i.Season = ? 
+                AND i.WeekStart <= ? 
+                AND i.WeekEnd >= ?
+            WHERE r.TeamID = ?
+            ORDER BY CASE r.Pos
+                WHEN 'QB' THEN 1 WHEN 'WR' THEN 2 WHEN 'RB' THEN 3 WHEN 'TE' THEN 4 WHEN 'OL' THEN 5
+                WHEN 'DE' THEN 6 WHEN 'DT' THEN 7 WHEN 'LB' THEN 8 WHEN 'CB' THEN 9 WHEN 'FS' THEN 10
+                WHEN 'SS' THEN 11 WHEN 'K' THEN 12 WHEN 'P' THEN 13 ELSE 14 END, r.DepthChart
+        `, [currentSeason, currentWeek, currentWeek, id]);
+        renderTeamHeader(team);
+        renderRosterStats(roster);
+        renderRoster(roster);
+    }
+
+    function renderTeamHeader(team) {
+        document.getElementById('team-header').innerHTML =
+            '<div class="team-header"><div class="team-header-logo">' +
+            logoImg(team.name, 'team-logo-large') +
+            '<div><h2>' + team.name + '</h2>' +
+            (team.owner ? '<div style="opacity:0.9">Owner: ' + team.owner + '</div>' : '') +
+            '</div></div></div>';
+    }
+
+    function renderRosterStats(roster) {
+        if (!roster.length) { document.getElementById('stats-container').innerHTML = ''; return; }
+        const rated = roster.filter(p => p.overall);
+        const avg = rated.length ? (rated.reduce((s,p) => s + p.overall, 0) / rated.length).toFixed(0) : 'N/A';
+        document.getElementById('stats-container').innerHTML =
+            '<div class="stats">' +
+            '<div class="stat-card"><div class="stat-label">Total Players</div><div class="stat-value">' + roster.length + '</div></div>' +
+            '<div class="stat-card"><div class="stat-label">Avg Overall</div><div class="stat-value">' + avg + '</div></div>' +
+            '</div>';
+    }
+
+    function renderRoster(roster) {
+        if (!roster.length) {
+            document.getElementById('roster-container').innerHTML =
+                '<div class="roster-container"><div class="empty-state"><h3>No players found</h3></div></div>';
+            return;
+        }
+        const groups = {};
+        roster.forEach(p => { (groups[p.Pos] = groups[p.Pos] || []).push(p); });
+        const order = ['QB','WR','RB','TE','OL','DE','DT','LB','CB','FS','SS','K','P'];
+        
+        // Get current week for injury calculation
+        const leagueState = query('SELECT Week FROM LeagueState LIMIT 1')[0];
+        const currentWeek = leagueState ? leagueState.Week : 1;
+        
+        let html = '<div class="roster-container">';
+        order.forEach(pos => {
+            if (!groups[pos]) return;
+            html += '<div class="position-group"><div class="position-header">' +
+                    posName(pos) + ' (' + groups[pos].length + ')</div><div class="player-grid">';
+            groups[pos].forEach(p => {
+                const ovr = p.overall_let || p.overall || 'N/A';
+                const pot = p.potential_let || p.potential || 'N/A';
+                const isInjured = p.InjuryType && p.WeekEnd >= currentWeek;
+                const weeksRemaining = isInjured ? (p.WeekEnd - currentWeek + 1) : 0;
+                
+                // Clean injury type (remove quotes if present)
+                const injuryType = p.InjuryType ? p.InjuryType.replace(/"/g, '') : '';
+                
+                html += '<div class="player-card' + (isInjured ? ' injured' : '') + '" data-player-id="' + p.PlayerID + '">' +
+                    '<div class="depth-badge">' + (p.DepthChart||'-') + '</div>' +
+                    '<div class="player-name">' + (p.FirstName||'') + ' ' + (p.LastName||'') + '</div>';
+                
+                // Add injury badge if injured
+                if (isInjured) {
+                    html += '<div class="injury-badge">' +
+                        '<div class="injury-type">🏥 ' + injuryType + '</div>' +
+                        '<div class="injury-weeks">' + weeksRemaining + ' week' + (weeksRemaining > 1 ? 's' : '') + '</div>' +
+                        '</div>';
+                } else {
+                    html += '<div></div>'; // Empty cell to maintain grid
+                }
+                
+                html += '<div class="player-detail"><div class="player-detail-label">Age</div><div class="player-detail-value">' + (p.Age||'-') + '</div></div>' +
+                    '<div class="player-detail"><div class="player-detail-label">Height</div><div class="player-detail-value">' + (p.Height ? fmtHeight(p.Height) : '-') + '</div></div>' +
+                    '<div class="player-detail"><div class="player-detail-label">Weight</div><div class="player-detail-value">' + (p.Weight||'-') + '</div></div>' +
+                    '<div class="player-detail"><div class="player-detail-label">College</div><div class="player-detail-value">' + (p.College||'-') + '</div></div>' +
+                    '<div class="player-stat-inline overall-stat"><div class="stat-name-inline">Overall</div><div class="stat-val-inline">' + ovr + '</div></div>' +
+                    '<div class="player-stat-inline"><div class="stat-name-inline">Potential</div><div class="stat-val-inline">' + pot + '</div></div>' +
+                    '</div>';
+            });
+            html += '</div></div>';
+        });
+        html += '</div>';
+        document.getElementById('roster-container').innerHTML = html;
+        
+        // Add click handlers for mobile expansion
+        if (document.body.classList.contains('mobile')) {
+            document.querySelectorAll('.player-card').forEach(card => {
+                card.addEventListener('click', function() {
+                    this.classList.toggle('expanded');
+                });
+            });
+        }
+    }
+
+    function clearRoster() {
+        document.getElementById('teamSelect').value = '';
+        document.getElementById('team-header').innerHTML = '';
+        document.getElementById('stats-container').innerHTML = '';
+        document.getElementById('roster-container').innerHTML =
+            '<div class="roster-container"><div class="empty-state"><h3>No team selected</h3></div></div>';
+    }
+
+    // ── Standings ───────────────────────────────────────────────────────────
+    function loadStandings() {
+        const teams = query('SELECT TeamID, name FROM Teams');
+        const standings = teams.map(t => {
+            const wins = query('SELECT COUNT(*) as c FROM GameLog WHERE WinningTeamID=? AND TieFlag=0', [t.TeamID])[0].c;
+            const losses = query('SELECT COUNT(*) as c FROM GameLog WHERE LosingTeamID=? AND TieFlag=0', [t.TeamID])[0].c;
+            const ties = query('SELECT COUNT(*) as c FROM GameLog WHERE (HomeTeamID=? OR AwayTeamID=?) AND TieFlag=1', [t.TeamID,t.TeamID])[0].c;
+            const pts = query(`
+                SELECT 
+                    SUM(CASE WHEN HomeTeamID=? THEN HomeTeamScore ELSE 0 END) +
+                    SUM(CASE WHEN AwayTeamID=? THEN AwayTeamScore ELSE 0 END) as pf,
+                    SUM(CASE WHEN HomeTeamID=? THEN AwayTeamScore ELSE 0 END) +
+                    SUM(CASE WHEN AwayTeamID=? THEN HomeTeamScore ELSE 0 END) as pa
+                FROM GameLog WHERE HomeTeamID=? OR AwayTeamID=?
+            `, [t.TeamID,t.TeamID,t.TeamID,t.TeamID,t.TeamID,t.TeamID])[0];
+            const pf = pts.pf || 0, pa = pts.pa || 0;
+            
+            // Calculate win percentage (ties count as 0.5 wins)
+            const totalGames = wins + losses + ties;
+            const winPct = totalGames > 0 ? ((wins + (ties * 0.5)) / totalGames) : 0;
+            
+            return {name: t.name, wins, losses, ties, points_for: pf, points_against: pa, point_diff: pf-pa, win_pct: winPct};
+        });
+        
+        // Sort by win percentage (desc), then by point differential (desc)
+        standings.sort((a,b) => {
+            if (Math.abs(b.win_pct - a.win_pct) < 0.0001) { // Handle float comparison
+                return b.point_diff - a.point_diff;
+            }
+            return b.win_pct - a.win_pct;
+        });
+
+        let html = '<div class="standings-table-container"><table><thead><tr>' +
+            '<th>Rank</th><th>Team</th><th>W</th><th>L</th><th>T</th><th>PCT</th><th>PF</th><th>PA</th><th>Diff</th>' +
+            '</tr></thead><tbody>';
+        standings.forEach((t,i) => {
+            const r = i+1, rc = r<=3 ? 'rank-'+r : '';
+            const diff = t.point_diff >= 0 ? '+'+t.point_diff : t.point_diff;
+            const color = t.point_diff >= 0 ? '#2ecc71' : '#e74c3c';
+            const pct = t.win_pct.toFixed(3); // Standard format: .750, .500, etc.
+            html += '<tr><td><span class="rank-badge '+rc+'">'+r+'</span></td>' +
+                '<td><div class="team-with-logo">'+logoImg(t.name,'team-logo-small')+'<strong>'+t.name+'</strong></div></td>' +
+                '<td>'+t.wins+'</td><td>'+t.losses+'</td><td>'+t.ties+'</td><td><strong>'+pct+'</strong></td>' +
+                '<td>'+t.points_for+'</td><td>'+t.points_against+'</td>' +
+                '<td style="color:'+color+';font-weight:bold">'+diff+'</td></tr>';
+        });
+        document.getElementById('standings-container').innerHTML = html + '</tbody></table></div>';
+    }
+
+    // ── Scores ───────────────────────────────────────────────────────────────
+    function loadScores() {
+        const scores = query(`
+            SELECT g.GameID, g.SeasonID, g.HomeTeamScore, g.AwayTeamScore,
+                   g.TieFlag, g.OvertimeFlag, g.HomeTeamID, g.AwayTeamID,
+                   ht.name as HomeTeamName, at.name as AwayTeamName
+            FROM GameLog g
+            LEFT JOIN Teams ht ON g.HomeTeamID = ht.TeamID
+            LEFT JOIN Teams at ON g.AwayTeamID = at.TeamID
+            ORDER BY g.GameID DESC
+        `);
+        let html = '<div class="scores-table-container">';
+        scores.forEach(g => {
+            const hw = g.HomeTeamScore > g.AwayTeamScore && !g.TieFlag;
+            const aw = g.AwayTeamScore > g.HomeTeamScore && !g.TieFlag;
+            html += '<div class="game-card" data-game-id="' + g.GameID + '">' +
+                '<div class="game-header"><div><strong>Game '+g.GameID+'</strong> — Season '+g.SeasonID+'</div>' +
+                '<div>'+(g.TieFlag?'<span class="game-badge badge-tie">TIE</span>':'')+(g.OvertimeFlag?'<span class="game-badge badge-ot">OT</span>':'')+'</div></div>' +
+                '<div class="game-teams">' +
+                '<div class="game-team-container" style="align-items:flex-end">'+logoImg(g.AwayTeamName,'team-logo')+
+                '<div class="team-name'+(aw?' winner':'')+'">'+g.AwayTeamName+'</div>' +
+                '<div class="score'+(aw?' winner':'')+'">'+g.AwayTeamScore+'</div></div>' +
+                '<div class="vs">@</div>' +
+                '<div class="game-team-container" style="align-items:flex-start">'+logoImg(g.HomeTeamName,'team-logo')+
+                '<div class="team-name'+(hw?' winner':'')+'">'+g.HomeTeamName+'</div>' +
+                '<div class="score'+(hw?' winner':'')+'">'+g.HomeTeamScore+'</div></div>' +
+                '</div>' +
+                '<div style="text-align:center;margin-top:12px;">' +
+                '<button onclick="toggleGameStats('+g.GameID+', '+g.HomeTeamID+', '+g.AwayTeamID+')" style="padding:8px 16px;font-size:13px;">View Game Stats</button>' +
+                '</div>' +
+                '<div id="game-stats-'+g.GameID+'" class="game-stats-container" style="display:none;"></div>' +
+                '</div>';
+        });
+        document.getElementById('scores-container').innerHTML = html + '</div>';
+    }
+    
+    function toggleGameStats(gameID, homeTeamID, awayTeamID) {
+        const container = document.getElementById('game-stats-' + gameID);
+        
+        if (container.style.display === 'none') {
+            // Load and show stats
+            const stats = query(`
+                SELECT s.PlayerID, p.FirstName, p.LastName, p.Position, r.TeamID,
+                       s.passingAttempts, s.passingCompletions, s.passingYards, s.passingTDs, s.passingInterceptions,
+                       s.rushAttempts, s.rushYards, s.rushTDs,
+                       s.receivingTargets, s.receivingReceptions, s.receivingYards, s.receivingTDs,
+                       s.defensiveTackles, s.defensiveSacks, s.defensiveInterceptions,
+                       s.fgAttempt, s.fgMake, s.puntAttempt, s.puntYards
+                FROM SeasonStats s
+                LEFT JOIN Players p ON s.PlayerID = p.PlayerID
+                LEFT JOIN Rosters r ON s.PlayerID = r.PlayerID
+                WHERE s.GameID = ?
+                ORDER BY r.TeamID, p.Position
+            `, [gameID]);
+            
+            if (!stats.length) {
+                container.innerHTML = '<div style="padding:20px;text-align:center;color:#999;">No stats available for this game</div>';
+            } else {
+                renderGameStats(stats, homeTeamID, awayTeamID, container);
+            }
+            container.style.display = 'block';
+        } else {
+            // Hide stats
+            container.style.display = 'none';
+        }
+    }
+    
+    function renderGameStats(stats, homeTeamID, awayTeamID, container) {
+        // Separate stats by team
+        const homeStats = stats.filter(s => s.TeamID === homeTeamID);
+        const awayStats = stats.filter(s => s.TeamID === awayTeamID);
+        
+        let html = '<div style="margin-top:20px;padding-top:20px;border-top:2px solid #e0e0e0;">';
+        
+        // Passing stats
+        const passers = stats.filter(s => (s.passingAttempts||0) > 0);
+        if (passers.length) {
+            html += '<h3 style="color:#1e3c72;margin-bottom:10px;font-size:16px;">Passing</h3>';
+            html += '<table style="width:100%;font-size:13px;margin-bottom:20px;"><thead><tr><th>Player</th><th>Cmp</th><th>Att</th><th>Yds</th><th>TD</th><th>INT</th><th>Rating</th></tr></thead><tbody>';
+            passers.forEach(p => {
+                const comp = p.passingCompletions||0;
+                const att = p.passingAttempts||0;
+                const yds = p.passingYards||0;
+                const avg = att > 0 ? (yds/att).toFixed(1) : '0.0';
+                html += '<tr><td><strong>'+p.FirstName+' '+p.LastName+'</strong></td>' +
+                    '<td>'+comp+'</td><td>'+att+'</td><td>'+yds+'</td><td>'+(p.passingTDs||0)+'</td><td>'+(p.passingInterceptions||0)+'</td><td>'+avg+'</td></tr>';
+            });
+            html += '</tbody></table>';
+        }
+        
+        // Rushing stats
+        const rushers = stats.filter(s => (s.rushAttempts||0) > 0);
+        if (rushers.length) {
+            html += '<h3 style="color:#1e3c72;margin-bottom:10px;font-size:16px;">Rushing</h3>';
+            html += '<table style="width:100%;font-size:13px;margin-bottom:20px;"><thead><tr><th>Player</th><th>Att</th><th>Yds</th><th>Avg</th><th>TD</th></tr></thead><tbody>';
+            rushers.forEach(p => {
+                const att = p.rushAttempts||0;
+                const yds = p.rushYards||0;
+                const avg = att > 0 ? (yds/att).toFixed(1) : '0.0';
+                html += '<tr><td><strong>'+p.FirstName+' '+p.LastName+'</strong></td>' +
+                    '<td>'+att+'</td><td>'+yds+'</td><td>'+avg+'</td><td>'+(p.rushTDs||0)+'</td></tr>';
+            });
+            html += '</tbody></table>';
+        }
+        
+        // Receiving stats
+        const receivers = stats.filter(s => (s.receivingTargets||0) > 0);
+        if (receivers.length) {
+            html += '<h3 style="color:#1e3c72;margin-bottom:10px;font-size:16px;">Receiving</h3>';
+            html += '<table style="width:100%;font-size:13px;margin-bottom:20px;"><thead><tr><th>Player</th><th>Tgt</th><th>Rec</th><th>Yds</th><th>Avg</th><th>TD</th></tr></thead><tbody>';
+            receivers.forEach(p => {
+                const rec = p.receivingReceptions||0;
+                const yds = p.receivingYards||0;
+                const avg = rec > 0 ? (yds/rec).toFixed(1) : '0.0';
+                html += '<tr><td><strong>'+p.FirstName+' '+p.LastName+'</strong></td>' +
+                    '<td>'+(p.receivingTargets||0)+'</td><td>'+rec+'</td><td>'+yds+'</td><td>'+avg+'</td><td>'+(p.receivingTDs||0)+'</td></tr>';
+            });
+            html += '</tbody></table>';
+        }
+        
+        // Defense stats
+        const defenders = stats.filter(s => (s.defensiveTackles||0) > 0 || (s.defensiveSacks||0) > 0);
+        if (defenders.length) {
+            html += '<h3 style="color:#1e3c72;margin-bottom:10px;font-size:16px;">Defense (Top Performers)</h3>';
+            html += '<table style="width:100%;font-size:13px;margin-bottom:20px;"><thead><tr><th>Player</th><th>Tackles</th><th>Sacks</th><th>INT</th></tr></thead><tbody>';
+            defenders.sort((a,b) => (b.defensiveTackles||0) - (a.defensiveTackles||0)).slice(0,10).forEach(p => {
+                html += '<tr><td><strong>'+p.FirstName+' '+p.LastName+'</strong></td>' +
+                    '<td>'+(p.defensiveTackles||0)+'</td><td>'+(p.defensiveSacks||0)+'</td><td>'+(p.defensiveInterceptions||0)+'</td></tr>';
+            });
+            html += '</tbody></table>';
+        }
+        
+        // Kicking stats
+        const kickers = stats.filter(s => (s.fgAttempt||0) > 0);
+        if (kickers.length) {
+            html += '<h3 style="color:#1e3c72;margin-bottom:10px;font-size:16px;">Kicking</h3>';
+            html += '<table style="width:100%;font-size:13px;margin-bottom:20px;"><thead><tr><th>Player</th><th>FG Made</th><th>FG Att</th><th>FG%</th></tr></thead><tbody>';
+            kickers.forEach(p => {
+                const att = p.fgAttempt||0;
+                const made = p.fgMake||0;
+                const pct = att > 0 ? ((made/att)*100).toFixed(1)+'%' : '0%';
+                html += '<tr><td><strong>'+p.FirstName+' '+p.LastName+'</strong></td>' +
+                    '<td>'+made+'</td><td>'+att+'</td><td>'+pct+'</td></tr>';
+            });
+            html += '</tbody></table>';
+        }
+        
+        html += '</div>';
+        container.innerHTML = html;
+    }
+
+    // ── Season Stats ────────────────────────────────────────────────────────
+    function loadSeasonStats() {
+        // Get current season from LeagueState
+        const leagueState = query('SELECT Season FROM LeagueState LIMIT 1')[0];
+        const currentSeason = leagueState ? leagueState.Season : 1;
+        
+        console.log('📊 Loading stats for Season', currentSeason);
+        
+        allSeasonStats = query(`
+            SELECT s.PlayerID, p.FirstName, p.LastName, p.Position, t.name as TeamName,
+                   COUNT(DISTINCT s.GameID) as gamesPlayed,
+                   SUM(s.passingAttempts) as passingAttempts, SUM(s.passingCompletions) as passingCompletions,
+                   SUM(s.passingYards) as passingYards, SUM(s.passingTDs) as passingTDs, SUM(s.passingInterceptions) as passingInterceptions,
+                   SUM(s.rushAttempts) as rushAttempts, SUM(s.rushYards) as rushYards, SUM(s.rushTDs) as rushTDs, SUM(s.rushFumbles) as rushFumbles,
+                   SUM(s.receivingTargets) as receivingTargets, SUM(s.receivingReceptions) as receivingReceptions, SUM(s.receivingYards) as receivingYards, SUM(s.receivingTDs) as receivingTDs,
+                   SUM(s.defensiveTackles) as defensiveTackles, SUM(s.defensiveSacks) as defensiveSacks, SUM(s.defensiveFumbles) as defensiveFumbles,
+                   SUM(s.defensiveInterceptions) as defensiveInterceptions, SUM(s.defensivePassBreakups) as defensivePassBreakups, SUM(s.defensiveTFL) as defensiveTFL,
+                   SUM(s.fgAttempt) as fgAttempt, SUM(s.fgMake) as fgMake, SUM(s.puntAttempt) as puntAttempt, SUM(s.puntYards) as puntYards
+            FROM SeasonStats s
+            LEFT JOIN Players p ON s.PlayerID = p.PlayerID
+            LEFT JOIN Rosters r ON s.PlayerID = r.PlayerID
+            LEFT JOIN Teams t ON r.TeamID = t.TeamID
+            WHERE s.season = ?
+            GROUP BY s.PlayerID
+        `, [currentSeason]);
+        filterStatsBySkill();
+    }
+
+    function toggleSortOrder() {
+        sortOrder = sortOrder === 'desc' ? 'asc' : 'desc';
+        document.getElementById('sortOrderBtn').textContent = sortOrder === 'desc' ? '↓ Desc' : '↑ Asc';
+        filterStatsBySkill();
+    }
+
+    const sortOptionMap = {
+        passing: [['passingYards','Pass Yards'],['passingTDs','Pass TDs'],['passingAvg','Avg'],['passingAttempts','Attempts'],['passingCompletions','Completions'],['passingInterceptions','INTs']],
+        rushing: [['rushYards','Rush Yards'],['rushTDs','Rush TDs'],['rushAvg','Avg'],['rushAttempts','Attempts']],
+        receiving: [['receivingYards','Rec Yards'],['receivingTDs','Rec TDs'],['receivingAvg','Avg'],['receivingReceptions','Receptions'],['receivingTargets','Targets']],
+        defense: [['defensiveTackles','Tackles'],['defensiveSacks','Sacks'],['defensiveInterceptions','INTs'],['defensiveFumbles','Fumbles'],['defensivePassBreakups','PBUs'],['defensiveTFL','TFLs']],
+        kicking: [['fgPct','FG%'],['fgMake','FG Made'],['fgAttempt','FG Att']],
+        punting: [['puntAvg','Avg'],['puntYards','Punt Yards'],['puntAttempt','Punts']]
+    };
+
+    function filterStatsBySkill() {
+        currentSkill = document.getElementById('skillSelect').value;
+        
+        // Calculate averages/percentages for ALL stats first (needed for sorting)
+        allSeasonStats.forEach(p => {
+            p.passingAvg = (p.passingAttempts > 0) ? (p.passingYards / p.passingAttempts) : 0;
+            p.rushAvg = (p.rushAttempts > 0) ? (p.rushYards / p.rushAttempts) : 0;
+            p.receivingAvg = (p.receivingReceptions > 0) ? (p.receivingYards / p.receivingReceptions) : 0;
+            p.fgPct = (p.fgAttempt > 0) ? ((p.fgMake / p.fgAttempt) * 100) : 0;
+            p.puntAvg = (p.puntAttempt > 0) ? (p.puntYards / p.puntAttempt) : 0;
+        });
+        
+        // Set default sort column for the skill if needed
+        const defaultSort = sortOptionMap[currentSkill] ? sortOptionMap[currentSkill][0][0] : '';
+        if (!currentSortColumn || !sortOptionMap[currentSkill].find(s => s[0] === currentSortColumn)) {
+            currentSortColumn = defaultSort;
+            currentSortOrder = 'desc';
+        }
+
+        let filtered = [];
+        if (currentSkill === 'passing') filtered = allSeasonStats.filter(s => s.Position === 'QB');
+        else if (currentSkill === 'rushing') filtered = allSeasonStats.filter(s => (s.rushAttempts||0) > 0);
+        else if (currentSkill === 'receiving') filtered = allSeasonStats.filter(s => (s.receivingTargets||0) > 0);
+        else if (currentSkill === 'defense') filtered = allSeasonStats.filter(s => ['DE','DT','LB','CB','FS','SS'].includes(s.Position));
+        else if (currentSkill === 'kicking') filtered = allSeasonStats.filter(s => s.Position === 'K');
+        else if (currentSkill === 'punting') filtered = allSeasonStats.filter(s => s.Position === 'P');
+
+        if (currentSortColumn) {
+            filtered.sort((a,b) => currentSortOrder === 'desc' ? (b[currentSortColumn]||0) - (a[currentSortColumn]||0) : (a[currentSortColumn]||0) - (b[currentSortColumn]||0));
+        }
+
+        renderSeasonStats(filtered, currentSkill);
+    }
+    
+    function sortByColumn(column) {
+        if (currentSortColumn === column) {
+            // Toggle order if clicking same column
+            currentSortOrder = currentSortOrder === 'desc' ? 'asc' : 'desc';
+        } else {
+            // New column, default to descending
+            currentSortColumn = column;
+            currentSortOrder = 'desc';
+        }
+        filterStatsBySkill();
+    }
+
+    const colMap = {
+        passing: [['passingAttempts','Att'],['passingCompletions','Comp'],['passingYards','Yards'],['passingTDs','TD'],['passingInterceptions','INT'],['passingAvg','Avg']],
+        rushing: [['rushAttempts','Att'],['rushYards','Yards'],['rushAvg','Avg'],['rushTDs','TD'],['rushFumbles','Fum']],
+        receiving: [['receivingTargets','Targets'],['receivingReceptions','Rec'],['receivingYards','Yards'],['receivingAvg','Avg'],['receivingTDs','TD']],
+        defense: [['defensiveTackles','Tackles'],['defensiveSacks','Sacks'],['defensiveTFL','TFL'],['defensiveInterceptions','INT'],['defensiveFumbles','Fum'],['defensivePassBreakups','PBU']],
+        kicking: [['fgMake','FG Made'],['fgAttempt','FG Att'],['fgPct','FG%']],
+        punting: [['puntAttempt','Punts'],['puntYards','Yards'],['puntAvg','Avg']]
+    };
+
+    function renderSeasonStats(stats, skill) {
+        const c = document.getElementById('season-stats-container');
+        if (!stats.length) {
+            c.innerHTML = '<div class="stats-table-container"><p style="text-align:center;padding:40px;color:#999">No stats for this category</p></div>';
+            return;
+        }
+        
+        // Get current season for display
+        const leagueState = query('SELECT Season FROM LeagueState LIMIT 1')[0];
+        const currentSeason = leagueState ? leagueState.Season : '?';
+        
+        const cols = colMap[skill] || [];
+        let html = '<div class="stats-table-container">';
+        html += '<div style="margin-bottom:15px;color:#666;font-size:14px;">Season ' + currentSeason + ' Stats (Click column to sort)</div>';
+        html += '<table><thead><tr><th>#</th><th>Player</th><th>Team</th><th>Pos</th><th>GP</th>';
+        
+        // Clickable headers with sort indicators
+        cols.forEach(col => {
+            const colKey = col[0];
+            const colLabel = col[1];
+            const isSorted = currentSortColumn === colKey;
+            const sortArrow = isSorted ? (currentSortOrder === 'desc' ? ' ▼' : ' ▲') : '';
+            html += '<th onclick="sortByColumn(\'' + colKey + '\')" style="cursor:pointer;user-select:none;">' + colLabel + sortArrow + '</th>';
+        });
+        
+        html += '</tr></thead><tbody>';
+
+        stats.forEach((p,i) => {
+            html += '<tr><td><strong>'+(i+1)+'</strong></td>' +
+                '<td><strong>'+(p.FirstName||'')+' '+(p.LastName||'')+'</strong></td>' +
+                '<td>'+(p.TeamName||'N/A')+'</td><td>'+(p.Position||'')+'</td><td>'+(p.gamesPlayed||0)+'</td>';
+
+            if (skill === 'passing') {
+                html += '<td>'+(p.passingAttempts||0)+'</td><td>'+(p.passingCompletions||0)+'</td><td>'+(p.passingYards||0)+'</td>' +
+                        '<td>'+(p.passingTDs||0)+'</td><td>'+(p.passingInterceptions||0)+'</td>' +
+                        '<td>'+p.passingAvg.toFixed(1)+'</td>';
+            } else if (skill === 'rushing') {
+                html += '<td>'+(p.rushAttempts||0)+'</td><td>'+(p.rushYards||0)+'</td>' +
+                        '<td>'+p.rushAvg.toFixed(1)+'</td>' +
+                        '<td>'+(p.rushTDs||0)+'</td><td>'+(p.rushFumbles||0)+'</td>';
+            } else if (skill === 'receiving') {
+                html += '<td>'+(p.receivingTargets||0)+'</td><td>'+(p.receivingReceptions||0)+'</td><td>'+(p.receivingYards||0)+'</td>' +
+                        '<td>'+p.receivingAvg.toFixed(1)+'</td><td>'+(p.receivingTDs||0)+'</td>';
+            } else if (skill === 'defense') {
+                html += '<td>'+(p.defensiveTackles||0)+'</td><td>'+(p.defensiveSacks||0)+'</td>' +
+                        '<td>'+(p.defensiveTFL||0)+'</td><td>'+(p.defensiveInterceptions||0)+'</td>' +
+                        '<td>'+(p.defensiveFumbles||0)+'</td><td>'+(p.defensivePassBreakups||0)+'</td>';
+            } else if (skill === 'kicking') {
+                html += '<td>'+(p.fgMake||0)+'</td><td>'+(p.fgAttempt||0)+'</td><td>'+p.fgPct.toFixed(1)+'%</td>';
+            } else if (skill === 'punting') {
+                html += '<td>'+(p.puntAttempt||0)+'</td><td>'+(p.puntYards||0)+'</td><td>'+p.puntAvg.toFixed(1)+'</td>';
+            }
+            html += '</tr>';
+        });
+        c.innerHTML = html + '</tbody></table></div>';
+    }
+
+    // ── News ────────────────────────────────────────────────────────────────
+    function loadNews() {
+        allNews = query(`
+            SELECT NewsID, WeekID, SeasonID, NewsType, ProfilePicture, Media, Handle, Name, Content
+            FROM NewsFeed
+            ORDER BY SeasonID DESC, WeekID DESC, NewsID DESC
+        `);
+        filterNews();
+    }
+
+    function filterNews() {
+        const filter = document.getElementById('newsFilter').value;
+        const filtered = filter === 'all' ? allNews : allNews.filter(n => (n.NewsType||'').toLowerCase() === filter);
+        renderNews(filtered);
+    }
+
+    function badgeClass(type) {
+        const map = {report:'badge-report', tweet:'badge-tweet', injury:'badge-injury', trade:'badge-trade'};
+        return map[(type||'').toLowerCase()] || 'badge-default';
+    }
+
+    function renderNews(news) {
+        const c = document.getElementById('news-container');
+        if (!news.length) {
+            c.innerHTML = '<div style="background:white;padding:60px 20px;border-radius:16px;text-align:center;color:#94a3b8"><div style="font-size:64px">📰</div><h3>No news yet</h3></div>';
+            return;
+        }
+        const cards = news.map(item => {
+            const typeLabel = item.NewsType ? item.NewsType.charAt(0).toUpperCase() + item.NewsType.slice(1).toLowerCase() : 'News';
+            const meta = (item.SeasonID ? 'Season ' + item.SeasonID : '') + (item.WeekID ? ' · Wk ' + item.WeekID : '');
+            const initials = getInitials(item.Name);
+
+            const avatar = item.ProfilePicture
+                ? '<img src="Pictures/'+item.ProfilePicture+'.png" alt="'+(item.Name||'')+'" class="news-avatar" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">'+
+                  '<div class="news-avatar-placeholder" style="display:none">'+initials+'</div>'
+                : '<div class="news-avatar-placeholder">'+initials+'</div>';
+
+            const mediaImg = (item.Media && item.Media !== 'null')
+                ? '<img src="Pictures/'+item.Media+'.png" alt="media" class="news-image" onerror="this.style.display=\'none\'">'
+                : '';
+
+            return '<div class="news-card"><div class="news-card-inner"><div>'+avatar+'</div>' +
+                '<div><div class="news-header">' +
+                '<span class="news-name">'+(item.Name||'WFL Reporter')+'</span>' +
+                '<span class="news-handle">'+(item.Handle||'')+'</span>' +
+                '<span class="news-badge '+badgeClass(item.NewsType)+'">'+typeLabel+'</span>' +
+                '<span class="news-meta">'+meta+'</span></div>' +
+                '<div class="news-content">'+(item.Content||'')+'</div>'+mediaImg+
+                '<div class="news-footer">' +
+                '<span>💬 Reply</span><span>🔁 Repost</span><span>❤️ Like</span><span>📤 Share</span>' +
+                '</div></div></div></div>';
+        }).join('');
+        c.innerHTML = '<div class="news-feed">'+cards+'</div>';
+    }
+
+    // ── Boot ────────────────────────────────────────────────────────────────
+    window.addEventListener('DOMContentLoaded', initDatabase);
+</script>
+</body>
+</html>
