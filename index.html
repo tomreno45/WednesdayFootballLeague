@@ -305,6 +305,115 @@
         .badge-default { background: #f1f5f9; color: #475569; }
         .empty-state { text-align: center; padding: 50px 20px; color: #999; }
 
+        /* Playoff bracket */
+        .playoff-locked {
+            text-align: center;
+            padding: 80px 20px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        .playoff-locked-icon { font-size: 80px; margin-bottom: 20px; opacity: 0.5; }
+        .playoff-locked h2 { color: #1e3c72; font-size: 2em; margin-bottom: 10px; }
+        .playoff-locked p { color: #666; font-size: 1.1em; }
+        
+        .playoff-bracket {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        .playoff-bracket h2 {
+            text-align: center;
+            color: #1e3c72;
+            margin-bottom: 30px;
+            font-size: 2em;
+        }
+        .bracket-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .bracket-round {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 20px;
+        }
+        .bracket-round h3 {
+            text-align: center;
+            color: #1e3c72;
+            font-size: 1.2em;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .bracket-matchup {
+            background: #f8f9ff;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 15px;
+        }
+        .bracket-matchup.bye {
+            background: #fff9e6;
+            border-color: #f1c40f;
+        }
+        .bracket-team {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px;
+            background: white;
+            border-radius: 6px;
+            margin-bottom: 8px;
+        }
+        .bracket-team:last-child {
+            margin-bottom: 0;
+        }
+        .bracket-team.winner {
+            background: #e8f5e9;
+            border: 2px solid #2ecc71;
+            font-weight: bold;
+        }
+        .bracket-team-name {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 16px;
+        }
+        .bracket-seed {
+            background: #1e3c72;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .bracket-score {
+            font-size: 20px;
+            font-weight: bold;
+            color: #333;
+            min-width: 30px;
+            text-align: center;
+        }
+        .bracket-score.winner-score {
+            color: #2ecc71;
+        }
+        .bye-text {
+            text-align: center;
+            padding: 20px;
+            color: #f39c12;
+            font-weight: bold;
+            font-size: 14px;
+            text-transform: uppercase;
+        }
+
         @media (max-width: 768px) {
             h1 { font-size: 2em; padding: 0 10px; }
             
@@ -574,6 +683,28 @@
                 gap: 12px;
             }
             
+            /* Mobile playoff bracket */
+            body.mobile .bracket-container {
+                grid-template-columns: 1fr;
+                gap: 30px;
+            }
+            
+            body.mobile .playoff-bracket {
+                padding: 20px;
+            }
+            
+            body.mobile .bracket-round h3 {
+                font-size: 1em;
+            }
+            
+            body.mobile .bracket-team-name {
+                font-size: 14px;
+            }
+            
+            body.mobile .bracket-score {
+                font-size: 18px;
+            }
+            
             /* Hide less important info on very small screens */
             @media (max-width: 375px) {
                 body.mobile .player-detail:nth-child(6) {
@@ -605,6 +736,7 @@
         <button class="tab-button" onclick="switchTab('standings')">Standings</button>
         <button class="tab-button" onclick="switchTab('scores')">Scores</button>
         <button class="tab-button" onclick="switchTab('stats')">Season Stats</button>
+        <button class="tab-button" onclick="switchTab('playoffs')">Playoffs</button>
         <button class="tab-button" onclick="switchTab('news')">WFL News</button>
     </div>
 
@@ -656,6 +788,10 @@
             </div>
         </div>
         <div id="season-stats-container"></div>
+    </div>
+
+    <div id="playoffs-tab" class="tab-content">
+        <div id="playoffs-container"></div>
     </div>
 
     <div id="news-tab" class="tab-content">
@@ -785,6 +921,7 @@
         if (name === 'standings') loadStandings();
         else if (name === 'scores') loadScores();
         else if (name === 'stats') loadSeasonStats();
+        else if (name === 'playoffs') loadPlayoffs();
         else if (name === 'news') loadNews();
     }
 
@@ -1142,6 +1279,153 @@
         }
         
         html += '</div>';
+        container.innerHTML = html;
+    }
+
+    // ── Playoffs ────────────────────────────────────────────────────────────
+    function loadPlayoffs() {
+        const container = document.getElementById('playoffs-container');
+        
+        // Check if playoffs are active
+        const leagueState = query('SELECT Progress FROM LeagueState LIMIT 1')[0];
+        
+        if (!leagueState || leagueState.Progress !== 'Playoffs') {
+            container.innerHTML = `
+                <div class="playoff-locked">
+                    <div class="playoff-locked-icon">🔒</div>
+                    <h2>Playoffs Not Available</h2>
+                    <p>The playoff bracket will be available once the regular season ends.</p>
+                    <p style="margin-top:20px;font-size:0.9em;color:#999;">Current Status: ${leagueState ? leagueState.Progress : 'Unknown'}</p>
+                </div>
+            `;
+            return;
+        }
+        
+        // Playoffs are active - load the bracket
+        renderPlayoffBracket();
+    }
+    
+    function renderPlayoffBracket() {
+        const container = document.getElementById('playoffs-container');
+        
+        // Get top 6 teams by win percentage
+        const teams = query('SELECT TeamID, name FROM Teams');
+        const standings = teams.map(t => {
+            const wins = query('SELECT COUNT(*) as c FROM GameLog WHERE WinningTeamID=? AND TieFlag=0', [t.TeamID])[0].c;
+            const losses = query('SELECT COUNT(*) as c FROM GameLog WHERE LosingTeamID=? AND TieFlag=0', [t.TeamID])[0].c;
+            const ties = query('SELECT COUNT(*) as c FROM GameLog WHERE (HomeTeamID=? OR AwayTeamID=?) AND TieFlag=1', [t.TeamID,t.TeamID])[0].c;
+            const totalGames = wins + losses + ties;
+            const winPct = totalGames > 0 ? ((wins + (ties * 0.5)) / totalGames) : 0;
+            const pts = query(`
+                SELECT 
+                    SUM(CASE WHEN HomeTeamID=? THEN HomeTeamScore ELSE 0 END) +
+                    SUM(CASE WHEN AwayTeamID=? THEN AwayTeamScore ELSE 0 END) as pf
+                FROM GameLog WHERE HomeTeamID=? OR AwayTeamID=?
+            `, [t.TeamID,t.TeamID,t.TeamID,t.TeamID])[0];
+            const pointDiff = pts.pf || 0;
+            return {TeamID: t.TeamID, name: t.name, winPct, pointDiff};
+        });
+        
+        // Sort by win percentage, then point differential
+        standings.sort((a,b) => {
+            if (Math.abs(b.winPct - a.winPct) < 0.0001) {
+                return b.pointDiff - a.pointDiff;
+            }
+            return b.winPct - a.winPct;
+        });
+        
+        // Top 6 teams
+        const playoffTeams = standings.slice(0, 6);
+        const seed1 = playoffTeams[0];
+        const seed2 = playoffTeams[1];
+        const seed3 = playoffTeams[2];
+        const seed4 = playoffTeams[3];
+        const seed5 = playoffTeams[4];
+        const seed6 = playoffTeams[5];
+        
+        // Get playoff games if they exist
+        // Wildcard: #3 vs #6, #4 vs #5
+        // Semifinals: #1 vs winner of 4/5, #2 vs winner of 3/6
+        // Championship: winners of semifinals
+        
+        let html = '<div class="playoff-bracket">';
+        html += '<h2>🏆 WFL Playoffs</h2>';
+        html += '<div class="bracket-container">';
+        
+        // Round 1: Wild Card
+        html += '<div class="bracket-round">';
+        html += '<h3>Wild Card</h3>';
+        
+        // Matchup 1: #3 vs #6
+        html += '<div class="bracket-matchup">';
+        html += '<div class="bracket-team">';
+        html += '<div class="bracket-team-name"><span class="bracket-seed">3</span>' + logoImg(seed3.name, 'team-logo-small') + seed3.name + '</div>';
+        html += '<div class="bracket-score">-</div>';
+        html += '</div>';
+        html += '<div class="bracket-team">';
+        html += '<div class="bracket-team-name"><span class="bracket-seed">6</span>' + logoImg(seed6.name, 'team-logo-small') + seed6.name + '</div>';
+        html += '<div class="bracket-score">-</div>';
+        html += '</div>';
+        html += '</div>';
+        
+        // Matchup 2: #4 vs #5
+        html += '<div class="bracket-matchup">';
+        html += '<div class="bracket-team">';
+        html += '<div class="bracket-team-name"><span class="bracket-seed">4</span>' + logoImg(seed4.name, 'team-logo-small') + seed4.name + '</div>';
+        html += '<div class="bracket-score">-</div>';
+        html += '</div>';
+        html += '<div class="bracket-team">';
+        html += '<div class="bracket-team-name"><span class="bracket-seed">5</span>' + logoImg(seed5.name, 'team-logo-small') + seed5.name + '</div>';
+        html += '<div class="bracket-score">-</div>';
+        html += '</div>';
+        html += '</div>';
+        
+        html += '</div>';
+        
+        // Round 2: Semifinals
+        html += '<div class="bracket-round">';
+        html += '<h3>Semifinals</h3>';
+        
+        // Matchup 1: #1 vs TBD
+        html += '<div class="bracket-matchup bye">';
+        html += '<div class="bracket-team">';
+        html += '<div class="bracket-team-name"><span class="bracket-seed">1</span>' + logoImg(seed1.name, 'team-logo-small') + seed1.name + '</div>';
+        html += '<div class="bracket-score">-</div>';
+        html += '</div>';
+        html += '<div class="bye-text">Awaiting Wild Card Winner</div>';
+        html += '</div>';
+        
+        // Matchup 2: #2 vs TBD
+        html += '<div class="bracket-matchup bye">';
+        html += '<div class="bracket-team">';
+        html += '<div class="bracket-team-name"><span class="bracket-seed">2</span>' + logoImg(seed2.name, 'team-logo-small') + seed2.name + '</div>';
+        html += '<div class="bracket-score">-</div>';
+        html += '</div>';
+        html += '<div class="bye-text">Awaiting Wild Card Winner</div>';
+        html += '</div>';
+        
+        html += '</div>';
+        
+        // Round 3: Championship
+        html += '<div class="bracket-round">';
+        html += '<h3>Championship</h3>';
+        
+        html += '<div class="bracket-matchup" style="margin-top:60px;">';
+        html += '<div class="bracket-team">';
+        html += '<div class="bracket-team-name">TBD</div>';
+        html += '<div class="bracket-score">-</div>';
+        html += '</div>';
+        html += '<div class="bracket-team">';
+        html += '<div class="bracket-team-name">TBD</div>';
+        html += '<div class="bracket-score">-</div>';
+        html += '</div>';
+        html += '</div>';
+        
+        html += '</div>';
+        
+        html += '</div>'; // bracket-container
+        html += '</div>'; // playoff-bracket
+        
         container.innerHTML = html;
     }
 
