@@ -1343,10 +1343,52 @@
         const seed5 = playoffTeams[4];
         const seed6 = playoffTeams[5];
         
-        // Get playoff games if they exist
-        // Wildcard: #3 vs #6, #4 vs #5
-        // Semifinals: #1 vs winner of 4/5, #2 vs winner of 3/6
-        // Championship: winners of semifinals
+        // Get all playoff games from GameLog (assuming GameID 31+ are playoffs)
+        const playoffGames = query(`
+            SELECT g.GameID, g.HomeTeamID, g.AwayTeamID, g.HomeTeamScore, g.AwayTeamScore, g.WinningTeamID
+            FROM GameLog g
+            WHERE g.GameID >= 31
+            ORDER BY g.GameID
+        `);
+        
+        // Helper function to find game by teams
+        function findGame(team1ID, team2ID) {
+            return playoffGames.find(g => 
+                (g.HomeTeamID === team1ID && g.AwayTeamID === team2ID) ||
+                (g.HomeTeamID === team2ID && g.AwayTeamID === team1ID)
+            );
+        }
+        
+        // Helper function to render matchup
+        function renderMatchup(seed1Obj, seed2Obj, seedNum1, seedNum2) {
+            const game = findGame(seed1Obj.TeamID, seed2Obj.TeamID);
+            let html = '<div class="bracket-matchup">';
+            
+            // Team 1
+            const team1Score = game ? (game.HomeTeamID === seed1Obj.TeamID ? game.HomeTeamScore : game.AwayTeamScore) : '-';
+            const team1Win = game && game.WinningTeamID === seed1Obj.TeamID;
+            html += '<div class="bracket-team' + (team1Win ? ' winner' : '') + '">';
+            html += '<div class="bracket-team-name"><span class="bracket-seed">' + seedNum1 + '</span>' + logoImg(seed1Obj.name, 'team-logo-small') + seed1Obj.name + '</div>';
+            html += '<div class="bracket-score' + (team1Win ? ' winner-score' : '') + '">' + team1Score + '</div>';
+            html += '</div>';
+            
+            // Team 2
+            const team2Score = game ? (game.HomeTeamID === seed2Obj.TeamID ? game.HomeTeamScore : game.AwayTeamScore) : '-';
+            const team2Win = game && game.WinningTeamID === seed2Obj.TeamID;
+            html += '<div class="bracket-team' + (team2Win ? ' winner' : '') + '">';
+            html += '<div class="bracket-team-name"><span class="bracket-seed">' + seedNum2 + '</span>' + logoImg(seed2Obj.name, 'team-logo-small') + seed2Obj.name + '</div>';
+            html += '<div class="bracket-score' + (team2Win ? ' winner-score' : '') + '">' + team2Score + '</div>';
+            html += '</div>';
+            
+            html += '</div>';
+            return html;
+        }
+        
+        // Determine wild card winners
+        const game36 = findGame(seed3.TeamID, seed6.TeamID);
+        const game45 = findGame(seed4.TeamID, seed5.TeamID);
+        const winner36 = game36 ? playoffTeams.find(t => t.TeamID === game36.WinningTeamID) : null;
+        const winner45 = game45 ? playoffTeams.find(t => t.TeamID === game45.WinningTeamID) : null;
         
         let html = '<div class="playoff-bracket">';
         html += '<h2>🏆 WFL Playoffs</h2>';
@@ -1355,54 +1397,75 @@
         // Round 1: Wild Card
         html += '<div class="bracket-round">';
         html += '<h3>Wild Card</h3>';
-        
-        // Matchup 1: #3 vs #6
-        html += '<div class="bracket-matchup">';
-        html += '<div class="bracket-team">';
-        html += '<div class="bracket-team-name"><span class="bracket-seed">3</span>' + logoImg(seed3.name, 'team-logo-small') + seed3.name + '</div>';
-        html += '<div class="bracket-score">-</div>';
-        html += '</div>';
-        html += '<div class="bracket-team">';
-        html += '<div class="bracket-team-name"><span class="bracket-seed">6</span>' + logoImg(seed6.name, 'team-logo-small') + seed6.name + '</div>';
-        html += '<div class="bracket-score">-</div>';
-        html += '</div>';
-        html += '</div>';
-        
-        // Matchup 2: #4 vs #5
-        html += '<div class="bracket-matchup">';
-        html += '<div class="bracket-team">';
-        html += '<div class="bracket-team-name"><span class="bracket-seed">4</span>' + logoImg(seed4.name, 'team-logo-small') + seed4.name + '</div>';
-        html += '<div class="bracket-score">-</div>';
-        html += '</div>';
-        html += '<div class="bracket-team">';
-        html += '<div class="bracket-team-name"><span class="bracket-seed">5</span>' + logoImg(seed5.name, 'team-logo-small') + seed5.name + '</div>';
-        html += '<div class="bracket-score">-</div>';
-        html += '</div>';
-        html += '</div>';
-        
+        html += renderMatchup(seed3, seed6, '3', '6');
+        html += renderMatchup(seed4, seed5, '4', '5');
         html += '</div>';
         
         // Round 2: Semifinals
         html += '<div class="bracket-round">';
         html += '<h3>Semifinals</h3>';
         
-        // Matchup 1: #1 vs TBD
-        html += '<div class="bracket-matchup bye">';
-        html += '<div class="bracket-team">';
-        html += '<div class="bracket-team-name"><span class="bracket-seed">1</span>' + logoImg(seed1.name, 'team-logo-small') + seed1.name + '</div>';
-        html += '<div class="bracket-score">-</div>';
-        html += '</div>';
-        html += '<div class="bye-text">Awaiting Wild Card Winner</div>';
-        html += '</div>';
+        // #1 vs winner of 4/5
+        if (winner45) {
+            const semifinal1 = findGame(seed1.TeamID, winner45.TeamID);
+            const winnerSemi1 = semifinal1 ? playoffTeams.find(t => t.TeamID === semifinal1.WinningTeamID) : null;
+            
+            html += '<div class="bracket-matchup">';
+            const team1Score = semifinal1 ? (semifinal1.HomeTeamID === seed1.TeamID ? semifinal1.HomeTeamScore : semifinal1.AwayTeamScore) : '-';
+            const team1Win = semifinal1 && semifinal1.WinningTeamID === seed1.TeamID;
+            html += '<div class="bracket-team' + (team1Win ? ' winner' : '') + '">';
+            html += '<div class="bracket-team-name"><span class="bracket-seed">1</span>' + logoImg(seed1.name, 'team-logo-small') + seed1.name + '</div>';
+            html += '<div class="bracket-score' + (team1Win ? ' winner-score' : '') + '">' + team1Score + '</div>';
+            html += '</div>';
+            
+            const winner45Seed = playoffTeams.indexOf(winner45) + 1;
+            const team2Score = semifinal1 ? (semifinal1.HomeTeamID === winner45.TeamID ? semifinal1.HomeTeamScore : semifinal1.AwayTeamScore) : '-';
+            const team2Win = semifinal1 && semifinal1.WinningTeamID === winner45.TeamID;
+            html += '<div class="bracket-team' + (team2Win ? ' winner' : '') + '">';
+            html += '<div class="bracket-team-name"><span class="bracket-seed">' + winner45Seed + '</span>' + logoImg(winner45.name, 'team-logo-small') + winner45.name + '</div>';
+            html += '<div class="bracket-score' + (team2Win ? ' winner-score' : '') + '">' + team2Score + '</div>';
+            html += '</div>';
+            html += '</div>';
+        } else {
+            html += '<div class="bracket-matchup bye">';
+            html += '<div class="bracket-team">';
+            html += '<div class="bracket-team-name"><span class="bracket-seed">1</span>' + logoImg(seed1.name, 'team-logo-small') + seed1.name + '</div>';
+            html += '<div class="bracket-score">-</div>';
+            html += '</div>';
+            html += '<div class="bye-text">Awaiting Wild Card Winner</div>';
+            html += '</div>';
+        }
         
-        // Matchup 2: #2 vs TBD
-        html += '<div class="bracket-matchup bye">';
-        html += '<div class="bracket-team">';
-        html += '<div class="bracket-team-name"><span class="bracket-seed">2</span>' + logoImg(seed2.name, 'team-logo-small') + seed2.name + '</div>';
-        html += '<div class="bracket-score">-</div>';
-        html += '</div>';
-        html += '<div class="bye-text">Awaiting Wild Card Winner</div>';
-        html += '</div>';
+        // #2 vs winner of 3/6
+        if (winner36) {
+            const semifinal2 = findGame(seed2.TeamID, winner36.TeamID);
+            const winnerSemi2 = semifinal2 ? playoffTeams.find(t => t.TeamID === semifinal2.WinningTeamID) : null;
+            
+            html += '<div class="bracket-matchup">';
+            const team1Score = semifinal2 ? (semifinal2.HomeTeamID === seed2.TeamID ? semifinal2.HomeTeamScore : semifinal2.AwayTeamScore) : '-';
+            const team1Win = semifinal2 && semifinal2.WinningTeamID === seed2.TeamID;
+            html += '<div class="bracket-team' + (team1Win ? ' winner' : '') + '">';
+            html += '<div class="bracket-team-name"><span class="bracket-seed">2</span>' + logoImg(seed2.name, 'team-logo-small') + seed2.name + '</div>';
+            html += '<div class="bracket-score' + (team1Win ? ' winner-score' : '') + '">' + team1Score + '</div>';
+            html += '</div>';
+            
+            const winner36Seed = playoffTeams.indexOf(winner36) + 1;
+            const team2Score = semifinal2 ? (semifinal2.HomeTeamID === winner36.TeamID ? semifinal2.HomeTeamScore : semifinal2.AwayTeamScore) : '-';
+            const team2Win = semifinal2 && semifinal2.WinningTeamID === winner36.TeamID;
+            html += '<div class="bracket-team' + (team2Win ? ' winner' : '') + '">';
+            html += '<div class="bracket-team-name"><span class="bracket-seed">' + winner36Seed + '</span>' + logoImg(winner36.name, 'team-logo-small') + winner36.name + '</div>';
+            html += '<div class="bracket-score' + (team2Win ? ' winner-score' : '') + '">' + team2Score + '</div>';
+            html += '</div>';
+            html += '</div>';
+        } else {
+            html += '<div class="bracket-matchup bye">';
+            html += '<div class="bracket-team">';
+            html += '<div class="bracket-team-name"><span class="bracket-seed">2</span>' + logoImg(seed2.name, 'team-logo-small') + seed2.name + '</div>';
+            html += '<div class="bracket-score">-</div>';
+            html += '</div>';
+            html += '<div class="bye-text">Awaiting Wild Card Winner</div>';
+            html += '</div>';
+        }
         
         html += '</div>';
         
@@ -1410,16 +1473,42 @@
         html += '<div class="bracket-round">';
         html += '<h3>Championship</h3>';
         
-        html += '<div class="bracket-matchup" style="margin-top:60px;">';
-        html += '<div class="bracket-team">';
-        html += '<div class="bracket-team-name">TBD</div>';
-        html += '<div class="bracket-score">-</div>';
-        html += '</div>';
-        html += '<div class="bracket-team">';
-        html += '<div class="bracket-team-name">TBD</div>';
-        html += '<div class="bracket-score">-</div>';
-        html += '</div>';
-        html += '</div>';
+        // Determine semifinal winners
+        const semifinal1 = winner45 ? findGame(seed1.TeamID, winner45.TeamID) : null;
+        const semifinal2 = winner36 ? findGame(seed2.TeamID, winner36.TeamID) : null;
+        const championshipTeam1 = semifinal1 ? playoffTeams.find(t => t.TeamID === semifinal1.WinningTeamID) : null;
+        const championshipTeam2 = semifinal2 ? playoffTeams.find(t => t.TeamID === semifinal2.WinningTeamID) : null;
+        
+        if (championshipTeam1 && championshipTeam2) {
+            const championship = findGame(championshipTeam1.TeamID, championshipTeam2.TeamID);
+            
+            html += '<div class="bracket-matchup" style="margin-top:60px;">';
+            const team1Score = championship ? (championship.HomeTeamID === championshipTeam1.TeamID ? championship.HomeTeamScore : championship.AwayTeamScore) : '-';
+            const team1Win = championship && championship.WinningTeamID === championshipTeam1.TeamID;
+            html += '<div class="bracket-team' + (team1Win ? ' winner' : '') + '">';
+            html += '<div class="bracket-team-name">' + logoImg(championshipTeam1.name, 'team-logo-small') + championshipTeam1.name + '</div>';
+            html += '<div class="bracket-score' + (team1Win ? ' winner-score' : '') + '">' + team1Score + '</div>';
+            html += '</div>';
+            
+            const team2Score = championship ? (championship.HomeTeamID === championshipTeam2.TeamID ? championship.HomeTeamScore : championship.AwayTeamScore) : '-';
+            const team2Win = championship && championship.WinningTeamID === championshipTeam2.TeamID;
+            html += '<div class="bracket-team' + (team2Win ? ' winner' : '') + '">';
+            html += '<div class="bracket-team-name">' + logoImg(championshipTeam2.name, 'team-logo-small') + championshipTeam2.name + '</div>';
+            html += '<div class="bracket-score' + (team2Win ? ' winner-score' : '') + '">' + team2Score + '</div>';
+            html += '</div>';
+            html += '</div>';
+        } else {
+            html += '<div class="bracket-matchup" style="margin-top:60px;">';
+            html += '<div class="bracket-team">';
+            html += '<div class="bracket-team-name">TBD</div>';
+            html += '<div class="bracket-score">-</div>';
+            html += '</div>';
+            html += '<div class="bracket-team">';
+            html += '<div class="bracket-team-name">TBD</div>';
+            html += '<div class="bracket-score">-</div>';
+            html += '</div>';
+            html += '</div>';
+        }
         
         html += '</div>';
         
