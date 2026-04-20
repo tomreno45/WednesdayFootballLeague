@@ -1086,16 +1086,17 @@
     function loadStandings() {
         const teams = query('SELECT TeamID, name FROM Teams');
         const standings = teams.map(t => {
-            const wins = query('SELECT COUNT(*) as c FROM GameLog WHERE WinningTeamID=? AND TieFlag=0', [t.TeamID])[0].c;
-            const losses = query('SELECT COUNT(*) as c FROM GameLog WHERE LosingTeamID=? AND TieFlag=0', [t.TeamID])[0].c;
-            const ties = query('SELECT COUNT(*) as c FROM GameLog WHERE (HomeTeamID=? OR AwayTeamID=?) AND TieFlag=1', [t.TeamID,t.TeamID])[0].c;
+            // Only count regular season games (exclude playoffs - GameID >= 31)
+            const wins = query('SELECT COUNT(*) as c FROM GameLog WHERE WinningTeamID=? AND TieFlag=0 AND GameID < 31', [t.TeamID])[0].c;
+            const losses = query('SELECT COUNT(*) as c FROM GameLog WHERE LosingTeamID=? AND TieFlag=0 AND GameID < 31', [t.TeamID])[0].c;
+            const ties = query('SELECT COUNT(*) as c FROM GameLog WHERE (HomeTeamID=? OR AwayTeamID=?) AND TieFlag=1 AND GameID < 31', [t.TeamID,t.TeamID])[0].c;
             const pts = query(`
                 SELECT 
                     SUM(CASE WHEN HomeTeamID=? THEN HomeTeamScore ELSE 0 END) +
                     SUM(CASE WHEN AwayTeamID=? THEN AwayTeamScore ELSE 0 END) as pf,
                     SUM(CASE WHEN HomeTeamID=? THEN AwayTeamScore ELSE 0 END) +
                     SUM(CASE WHEN AwayTeamID=? THEN HomeTeamScore ELSE 0 END) as pa
-                FROM GameLog WHERE HomeTeamID=? OR AwayTeamID=?
+                FROM GameLog WHERE (HomeTeamID=? OR AwayTeamID=?) AND GameID < 31
             `, [t.TeamID,t.TeamID,t.TeamID,t.TeamID,t.TeamID,t.TeamID])[0];
             const pf = pts.pf || 0, pa = pts.pa || 0;
             
@@ -1308,19 +1309,19 @@
     function renderPlayoffBracket() {
         const container = document.getElementById('playoffs-container');
         
-        // Get top 6 teams by win percentage
+        // Get top 6 teams by win percentage (REGULAR SEASON ONLY - exclude playoff games)
         const teams = query('SELECT TeamID, name FROM Teams');
         const standings = teams.map(t => {
-            const wins = query('SELECT COUNT(*) as c FROM GameLog WHERE WinningTeamID=? AND TieFlag=0', [t.TeamID])[0].c;
-            const losses = query('SELECT COUNT(*) as c FROM GameLog WHERE LosingTeamID=? AND TieFlag=0', [t.TeamID])[0].c;
-            const ties = query('SELECT COUNT(*) as c FROM GameLog WHERE (HomeTeamID=? OR AwayTeamID=?) AND TieFlag=1', [t.TeamID,t.TeamID])[0].c;
+            const wins = query('SELECT COUNT(*) as c FROM GameLog WHERE WinningTeamID=? AND TieFlag=0 AND GameID < 31', [t.TeamID])[0].c;
+            const losses = query('SELECT COUNT(*) as c FROM GameLog WHERE LosingTeamID=? AND TieFlag=0 AND GameID < 31', [t.TeamID])[0].c;
+            const ties = query('SELECT COUNT(*) as c FROM GameLog WHERE (HomeTeamID=? OR AwayTeamID=?) AND TieFlag=1 AND GameID < 31', [t.TeamID,t.TeamID])[0].c;
             const totalGames = wins + losses + ties;
             const winPct = totalGames > 0 ? ((wins + (ties * 0.5)) / totalGames) : 0;
             const pts = query(`
                 SELECT 
                     SUM(CASE WHEN HomeTeamID=? THEN HomeTeamScore ELSE 0 END) +
                     SUM(CASE WHEN AwayTeamID=? THEN AwayTeamScore ELSE 0 END) as pf
-                FROM GameLog WHERE HomeTeamID=? OR AwayTeamID=?
+                FROM GameLog WHERE (HomeTeamID=? OR AwayTeamID=?) AND GameID < 31
             `, [t.TeamID,t.TeamID,t.TeamID,t.TeamID])[0];
             const pointDiff = pts.pf || 0;
             return {TeamID: t.TeamID, name: t.name, winPct, pointDiff};
@@ -1343,13 +1344,20 @@
         const seed5 = playoffTeams[4];
         const seed6 = playoffTeams[5];
         
-        // Get all playoff games from GameLog (assuming GameID 31+ are playoffs)
+        console.log('Playoff Seeds:', playoffTeams.map((t,i) => `#${i+1} ${t.name} (${t.TeamID})`).join(', '));
+        
+        // Get all playoff games from GameLog (GameID >= 31 are playoffs)
         const playoffGames = query(`
             SELECT g.GameID, g.HomeTeamID, g.AwayTeamID, g.HomeTeamScore, g.AwayTeamScore, g.WinningTeamID
             FROM GameLog g
             WHERE g.GameID >= 31
             ORDER BY g.GameID
         `);
+        
+        console.log('Playoff games found:', playoffGames.length);
+        playoffGames.forEach(g => {
+            console.log(`  Game ${g.GameID}: Home ${g.HomeTeamID} (${g.HomeTeamScore}) vs Away ${g.AwayTeamID} (${g.AwayTeamScore}), Winner: ${g.WinningTeamID}`);
+        });
         
         // Helper function to find game by teams
         function findGame(team1ID, team2ID) {
